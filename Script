@@ -1,0 +1,362 @@
+#Installing therMizer from Github
+#install.packages("remotes")
+#remotes::install_github("sizespectrum/therMizer@dev")
+#remotes::install_github("sizespectrum/therMizer")
+library(mizer)
+library(therMizer)
+
+new_params <- readParams("Outputs/Mizer/tuned_params0412.rds")
+#new_params <- readParams("Outputs/Mizer/paramsT3_1003.rds")  #2023/10/03
+#new_params <- readParams("Outputs/Mizer/params0509.rds")
+
+#delet species
+params_d <- removeSpecies(new_params, species = "Pacific saury")
+new_params <- params_d
+#add species
+#params_a <- addSpecies(params_d, species_params = xxxxxx, gear_params = xxxxx)
+# params0220 <- setRateFunction(params, "Encounter",)  # needed it when replaced original params
+
+#input npp and temperature data ----
+#temperature <- readRDS("Outputs/Historical/GFDL_THETAO_totC.rds") #speices fit in surface temperature
+n_pp_array <- read.table("Outputs/Annual/Historical/plankton/GFDL_resource_spectra_historical.dat")
+#ocean_temp <- readRDS("Outputs/ocean_temp_array.rds") # ocean_temp_array scale down by Word Ocean Atlas
+
+#original ocean_temp_array
+#level_1to2 <- readRDS("Outputs/Historical/GFDL_THETAO_0to15_ave.rds")
+#level_3to4 <- readRDS("Outputs/Historical/GFDL_THETAO_15to40_ave.rds")
+#level_5to7 <- readRDS("Outputs/Historical/GFDL_THETAO_40to112.5_ave.rds")
+#level_8to10 <- readRDS("Outputs/Historical/GFDL_THETAO_112.5to275.5_ave.rds")
+#level_11to15 <- readRDS("Outputs/Historical/GFDL_THETAO_275.5to650_ave.rds")
+#ocean_temp <- abind::abind(level_1to2,level_3to4,level_5to7, level_8to10, level_11to15, along = 2)
+
+#scale down ocean_temp_array by WOA
+level_1to2 <- readRDS("Outputs/Annual/Historical/level01to02.rds")
+level_3to4 <- readRDS("Outputs/Annual/Historical/level03to04.rds")
+level_5to7 <- readRDS("Outputs/Annual/Historical/level05to07.rds")
+level_8to10 <- readRDS("Outputs/Annual/Historical/level08to10.rds")
+level_11to15 <- readRDS("Outputs/Annual/Historical/level11to15.rds")
+ocean_temp <- abind::abind(level_1to2,level_3to4,level_5to7, level_8to10, level_11to15, along = 2)
+
+
+
+#vetical_migration array set up----
+realm_names <- c("level_1to2", "level_3to4", "level_5to7", "level_8to10", "level_11to15")
+colnames(ocean_temp) <- realm_names
+species_names <- as.character(new_params@species_params$species)
+sizes <- new_params@w
+
+vertical_migration_array <- array(0, dim = (c(length(realm_names),
+                                              length(species_names), length(sizes))),
+                                  dimnames = list(realm = realm_names, sp = species_names,
+                                                  w = signif(sizes, 3)))
+zone01 <- which(realm_names =="level_1to2")
+zone02 <- which(realm_names == "level_3to4")
+zone03 <- which(realm_names =="level_5to7")
+zone04 <- which(realm_names == "level_8to10")
+zone05 <- which(realm_names == "level_11to15")
+
+# Have each species split its time using different zone -----
+#Bigeye tuna
+BET <- which(species_names=="Bigeye tuna")
+vertical_migration_array[zone01, BET, ] <- 0.25
+vertical_migration_array[zone02, BET, ] <- 0.15
+vertical_migration_array[zone03, BET, ] <- 0.15
+vertical_migration_array[zone04, BET, ] <- 0.2
+vertical_migration_array[zone05, BET, ] <- 0.25
+#Yellowfin tuna
+YFT <- which(species_names=="Yellowfin tuna")
+vertical_migration_array[zone01, YFT, ] <- 0.35
+vertical_migration_array[zone02, YFT, ] <- 0.25
+vertical_migration_array[zone03, YFT, ] <- 0.25
+vertical_migration_array[zone04, YFT, ] <- 0.15
+vertical_migration_array[zone05, YFT, ] <- 0
+#Albacore
+ALB <- which(species_names=="Albacore")
+vertical_migration_array[zone01, ALB, ] <- 0.15
+vertical_migration_array[zone02, ALB, ] <- 0.15
+vertical_migration_array[zone03, ALB, ] <- 0.15
+vertical_migration_array[zone04, ALB, ] <- 0.25
+vertical_migration_array[zone05, ALB, ] <- 0.3
+#Narrow stripe Spanish mackerel
+NSSM <- which(species_names=="Narrow stripe Spanish mackerel")
+vertical_migration_array[zone01, NSSM, ] <- 0.35
+vertical_migration_array[zone02, NSSM, ] <- 0.35
+vertical_migration_array[zone03, NSSM, ] <- 0.3
+vertical_migration_array[zone04, NSSM, ] <- 0
+vertical_migration_array[zone05, NSSM, ] <- 0
+#Skipjack
+SKJ <- which(species_names=="Skipjack")
+vertical_migration_array[zone01, SKJ, ] <- 0.35
+vertical_migration_array[zone02, SKJ, ] <- 0.25
+vertical_migration_array[zone03, SKJ, ] <- 0.2
+vertical_migration_array[zone04, SKJ, ] <- 0.1
+vertical_migration_array[zone05, SKJ, ] <- 0.1
+#Pacific chub mackerel
+PCM <- which(species_names=="Pacific chub mackerel")
+vertical_migration_array[zone01, PCM, ] <- 0.35
+vertical_migration_array[zone02, PCM, ] <- 0.25
+vertical_migration_array[zone03, PCM, ] <- 0.2
+vertical_migration_array[zone04, PCM, ] <- 0.2
+vertical_migration_array[zone05, PCM, ] <- 0
+#Japanese flying squid
+JFS <- which(species_names=="Japanese flying squid")
+vertical_migration_array[zone01, JFS, ] <- 0.35
+vertical_migration_array[zone02, JFS, ] <- 0.35
+vertical_migration_array[zone03, JFS, ] <- 0.3
+vertical_migration_array[zone04, JFS, ] <- 0
+vertical_migration_array[zone05, JFS, ] <- 0
+#Pacific saury
+#PC <- which(species_names=="Pacific saury")
+#vertical_migration_array[zone01, PC, ] <- 0
+#vertical_migration_array[zone02, PC, ] <- 0.1
+#vertical_migration_array[zone03, PC, ] <- 0.3
+#vertical_migration_array[zone04, PC, ] <- 0.3
+#vertical_migration_array[zone05, PC, ] <- 0.3
+#Bluestripe herring
+BH <- which(species_names=="Bluestripe herring")
+vertical_migration_array[zone01, BH, ] <- 1
+vertical_migration_array[zone02, BH, ] <- 0
+vertical_migration_array[zone03, BH, ] <- 0
+vertical_migration_array[zone04, BH, ] <- 0
+vertical_migration_array[zone05, BH, ] <- 0
+#Fringescale sardinella
+FS <- which(species_names=="Fringescale sardinella")
+vertical_migration_array[zone01, FS, ] <- 0.55
+vertical_migration_array[zone02, FS, ] <- 0.35
+vertical_migration_array[zone03, FS, ] <- 0.1
+vertical_migration_array[zone04, FS, ] <- 0
+vertical_migration_array[zone05, FS, ] <- 0
+#Indian anchovy
+IA <- which(species_names=="Indian anchovy")
+vertical_migration_array[zone01, IA, ] <- 0.55
+vertical_migration_array[zone02, IA, ] <- 0.35
+vertical_migration_array[zone03, IA, ] <- 0.1
+vertical_migration_array[zone04, IA, ] <- 0
+vertical_migration_array[zone05, IA, ] <- 0
+#Shorthead anchovy
+SA <- which(species_names=="Shorthead anchovy")
+vertical_migration_array[zone01, SA, ] <- 0.55
+vertical_migration_array[zone02, SA, ] <- 0.35
+vertical_migration_array[zone03, SA, ] <- 0.1
+vertical_migration_array[zone04, SA, ] <- 0
+vertical_migration_array[zone05, SA, ] <- 0
+#Buccaneer anchovy
+BA <- which(species_names=="Buccaneer anchovy")
+vertical_migration_array[zone01, BA, ] <- 0.55
+vertical_migration_array[zone02, BA, ] <- 0.45
+vertical_migration_array[zone03, BA, ] <- 0
+vertical_migration_array[zone04, BA, ] <- 0
+vertical_migration_array[zone05, BA, ] <- 0
+#Blue stripe round herring
+SSRH <- which(species_names=="Sliver stripe round herring")
+vertical_migration_array[zone01, SSRH, ] <- 0.55
+vertical_migration_array[zone02, SSRH, ] <- 0.45
+vertical_migration_array[zone03, SSRH, ] <- 0
+vertical_migration_array[zone04, SSRH, ] <- 0
+vertical_migration_array[zone05, SSRH, ] <- 0
+#Devis anchovy
+DA <- which(species_names=="Devis' anchovy")
+vertical_migration_array[zone01, DA, ] <- 1
+vertical_migration_array[zone02, DA, ] <- 0
+vertical_migration_array[zone03, DA, ] <- 0
+vertical_migration_array[zone04, DA, ] <- 0
+vertical_migration_array[zone05, DA, ] <- 0
+
+
+
+#set up paramsT depend on difference climate scenario ----
+paramsT <- upgradeTherParams(new_params,
+                             ocean_temp_array = ocean_temp,
+                             n_pp_array = n_pp_array, 
+                             vertical_migration_array = vertical_migration_array,
+                             aerobic_effect = TRUE, metabolism_effect = TRUE)
+
+# sim <- therProject(paramsT)
+# sim_times <- c(as.numeric(dimnames(other_params(paramsT)$ocean_temp)[[1]][1]), 
+               # dim(other_params(paramsT)$ocean_temp)[1])
+
+#sim <- project(paramsT, 
+#               t_start = as.numeric(dimnames(other_params(paramsT)$ocean_temp)[[1]][1]), 
+#                t_max = 164,  # length in years
+#                dt = 1/12) # because month
+
+plotTherPerformance(paramsT) 
+plotTherScalar(paramsT)
+plotSpectra(paramsT, total = T, power = 2)
+plotGrowthCurves(paramsT, species_panel = T)
+#plotBiomassVsSpecies(paramsT)
+plotBiomassObservedVsModel(paramsT)
+plotBiomassObservedVsModel(paramsT, ratio = T)
+plotlyFeedingLevel(paramsT)
+#plotYieldVsSpecies(paramsT)
+plotYieldObservedVsModel(paramsT)
+plotYieldObservedVsModel(paramsT, ratio = T)
+#plotEnergyBudget(paramsT)
+#getEncounter(paramsT)
+
+#paramsT1 <- tuneGrowth(paramsT)
+#paramsT1 <- setParams(paramsT1)
+#sim1 <- steady(paramsT1)
+#sim1 <- project(paramsT1,
+#                t_start = 1850,
+#                dt = 1/12)
+#plotSpectra(paramsT1, total = T, power = 2)
+#plotGrowthCurves(paramsT1, species_panel = T)
+#plotBiomassObservedVsModel(paramsT1)
+#plotBiomassObservedVsModel(paramsT1, ratio = T)
+#plotYieldObservedVsModel(paramsT1)
+#plotYieldObservedVsModel(paramsT1, ratio = T)
+
+#update gamma
+paramsT2 <- paramsT
+#paramsT2 <- shiny_gamma(paramsT)
+
+#gamma for 0511
+paramsT2@species_params$gamma <- c(2.5e-11, 2.0e-11, 7.0e-12, 8.5e-12, 6.5e-12, 2.5e-12, 2.0e-11, 
+                                   4.0e-12, 4.0e-12, 3.0e-12, 3.0e-12, 3.0e-12, 4.0e-12, 3.0e-12)
+
+#paramsT2@species_params$gamma <- c(1.5e-11, 1.0e-11, 6.0e-12, 7.5e-12, 6.5e-12, 1.5e-12, 1.0e-11, 4.0e-12, 
+#                                   3.0e-12, 3.0e-12, 2.0e-12, 2.0e-12, 2.0e-12, 3.0e-12, 2.0e-12)
+#Pacific saury(gamma) <- 5.0e-12
+
+#gamma for 0421
+#paramsT2@species_params$gamma <- c(1.0e-11, 1.0e-11, 9.0e-12, 9.0e-12, 9.0e-12, 2.5e-12, 5.0e-11, 8.5e-12,
+#                                8.5e-12, 8.5e-12, 9.0e-12, 8.5e-12, 8.5e-12, 8.5e-12, 8.5e-12)
+#orginal gamma
+#paramsT@species_params$gamma <- c(3e-12, 3e-12, 0.5e-12, 9.019341e-13, 6.560032e-13, 2.054603e-13, 2.383936e-12, 7.5e-13,
+           #                       7.931625e-13, 3.669622e-13, 4.177421e-13, 3.299370e-13, 3.555696e-13, 1.092047e-12, 4.152593e-13)
+
+#update erepro
+paramsT2@species_params$erepro <- c(8.478338e-04, 3.064589e-05, 4.701595e-01, 2.561825e-04, 1.179395e-03, 1.000000e-01, 1.975226e-04,
+                                    2.718651e-02, 1.000000e-01, 1.000000e-01,1.000000e-01, 4.919938e-01, 4.494007e-03, 1.309519e-01)
+
+#Pacific saury(erepro) <- 1.000000e-01
+
+paramsT2 <- setParams(paramsT2)
+
+
+sim00 <- steady(paramsT2)
+sim00 <- project(paramsT2)
+plotSpectra(sim00, total = T, power = 2)
+plotGrowthCurves(sim00, species_panel = T)
+plotFeedingLevel(sim00)
+#plotEnergyBudget(sim00)
+
+plotBiomassObservedVsModel(sim00)
+plotBiomassObservedVsModel(sim00, ratio = T)
+
+
+#Calibrate and match the biomass
+paramsT2 <- paramsT2 |> calibrateBiomass()|>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady() |>
+  matchBiomasses() |> steady() |> matchBiomasses() |> steady()
+
+#plotBiomassVsSpecies(paramsT2)
+plotBiomassObservedVsModel(paramsT2)
+plotGrowthCurves(paramsT2, species_panel = T)
+plotFeedingLevel(paramsT2)
+#plotEnergyBudget(paramsT2)
+paramsT2@initial_n <- sim00@n[dim(sim00@n)[1],,]
+sim0 <- project(paramsT2, 
+                t_start = 1850, 
+                t_max = 100, effort = 0.2,  # length in years
+                dt = 1/10)
+
+plotBiomassObservedVsModel(sim0)
+plotBiomassObservedVsModel(sim0, ratio = T)
+plotBiomass(sim0)
+
+#saveRDS(paramsT2, file = "Outputs/Mizer/paramsT3_0509_1.rds")
+
+
+
+
+# increasing resource abundance
+paramsT3 <- paramsT2
+paramsT3@other_params$other$n_pp_array <- paramsT2@other_params$other$n_pp_array *1.1
+
+paramsT3 <- setParams(paramsT3)
+sim0 <- project(paramsT3, 
+                t_start = 1850, 
+                t_max = 100, effort = 0.2,  # length in years
+                dt = 1/10)
+plotBiomass(sim0)
+plotBiomassObservedVsModel(sim0)
+plotYieldObservedVsModel(sim0)
+#plotBiomassObservedVsModel(sim0, ratio = T)
+
+#ajust the first 10 years biomass by the last value
+paramsT3@initial_n <- sim0@n[dim(sim0@n)[1],,]
+sim0 <- project(paramsT3, 
+                t_start = 1850, 
+                t_max = 164, effort = 0.2,  # length in years
+                dt = 1/10)
+plotBiomass(sim0)
+plotYield(sim0)
+
+sim1 <- project(paramsT3, 
+                t_start = 1850, 
+                t_max = 100, effort = 0.1,  # length in years
+                dt = 1/10)
+
+plotBiomass(sim1)
+#saveRDS(paramsT3, file = "Outputs/Mizer/paramsT3_0511.rds")
+saveRDS(paramsT3, file = "Outputs/Mizer/paramsT3_1003.rds")
+
+paramsT3 <- readRDS("Outputs/Mizer/paramsT3_1003.rds")
+
+
+#plot different Therscalar in same plot ----
+s1 <- plotTherScalar(params_ssp126, return_data = T)
+s2 <- plotTherScalar(params_ssp585, return_data = T)
+s3 <- plotTherScalar(params_ssp370, return_data = T)
+
+s1$scenario <- "126"
+s2$scenario <- "585"
+s3$scenario <- "370"
+
+s4 <-  rbind(s1, s2, s3)
+
+#put all the lines in one plot
+ggplot(data = s4)+
+  geom_line(mapping = aes(x=Time, y=Scalar, color= Type, linetype = scenario)) +
+  scale_y_continuous(limits = c(0,1))+
+  facet_wrap(~Species) 
+
+
+#seperate the "Encounter" and "Metabolism" into two figures
+ggplot(data =  filter(s4, Type=="Metabolism"))+
+  geom_line(mapping = aes(x=Time, y=Scalar, color= scenario), alpha = 0.5 ,linewidth = 1.0) +
+  scale_y_continuous(limits = c(0.2,1))+
+  facet_wrap(~Species, scales = "free")+ theme_bw()
+
+
+#box plot for "Metabolism" 
+p1 <- ggplot(data =  filter(s4, Type=="Metabolism"), aes(x= Species, y = Scalar, fill = scenario))+
+  geom_boxplot(position = position_dodge(1))+
+  scale_x_discrete(limits = c("Albacore", "Pacific chub mackerel", "Japanese flying squid"))+
+  ylab("Metabolism")+
+  coord_flip()
+
+p1 + scale_fill_brewer(palette = "Blues" )
+ # +theme(legend.position = "top")
+
+#box plot for "Encounter" 
+p2 <- ggplot(data =  filter(s4, Type=="Encounter"), aes(x= Species, y = Scalar, fill = scenario))+
+  geom_boxplot(position = position_dodge(1))+
+  scale_x_discrete(limits = c("Albacore", "Pacific chub mackerel", "Japanese flying squid"))+
+  ylab("Encounter")+
+  coord_flip()
+
+p2 + scale_fill_brewer(palette = "Greens" )
+#   + theme(legend.position = "top")
